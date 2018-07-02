@@ -1,0 +1,43 @@
+- hosts: postgresql
+
+  vars:
+    postgress_version: 9.6
+
+  tasks:
+
+  - name: "show error"
+    debug: msg="need set password var --extra-vars "password=pwd""
+    when: password is not defined
+
+  - name: "check param"
+    meta: end_play
+    when: password is not defined
+
+  - name: ensure apt cache is up to date
+    apt: update_cache=yes
+
+  - name: ensure packages are installed
+    apt: name={{item}}
+    with_items:
+        - postgresql
+        - libpq-dev
+        - python-psycopg2
+
+  - name: update postgres client configuration
+    action: template src=pg_hba.conf dest=/etc/postgresql/{{ postgress_version }}/main/pg_hba.conf
+
+  - lineinfile:
+       dest: /etc/postgresql/{{ postgress_version }}/main/postgresql.conf
+       insertafter: '#listen_addresses = '
+       line: 'listen_addresses = ''{{  ansible_default_ipv4.address  }}'''
+
+  - name: Start PostgreSQL and enable at boot
+    service: name=postgresql
+              enabled=yes
+              state=started
+
+  - name: restart postgresql
+    service: name=postgresql state=restarted
+
+  - name: set postgres password
+    shell: sudo -u postgres psql -c "ALTER USER postgres PASSWORD '{{ password }}';"
